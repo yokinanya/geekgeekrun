@@ -39,7 +39,8 @@ export async function completes(
     timeout = 120000,
     maxRetries = 3,
     // true / false switches thinking mode where the provider supports it; undefined leaves it alone
-    thinking
+    thinking,
+    maxTokens = 100
   },
   messages
 ) {
@@ -55,7 +56,7 @@ export async function completes(
     model,
     frequency_penalty: 0,
     // reasoning tokens count towards max_tokens, so only lift the cap when thinking was switched on
-    ...(thinking === true && Object.keys(extra).length ? {} : { max_tokens: 100 }),
+    ...(thinking === true && Object.keys(extra).length ? {} : { max_tokens: maxTokens }),
     temperature: 0.1,
     ...extra
   });

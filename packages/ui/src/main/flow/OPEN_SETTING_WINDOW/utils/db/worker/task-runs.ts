@@ -3,6 +3,7 @@
 // table gets the same search, filters, statistics and export as the data tables.
 import { readAutoChatResume, isAutoChatRunTerminated } from '../../../../../features/task-resume'
 import { checkpointRecovery } from '../../../../../../common/task-recovery.mjs'
+import { WORK_HOURS_WAITING_STATE } from '../../../../../../common/follow-work-hours.mjs'
 import {
   AUTO_CHAT_WORKER_ID,
   EXIT_CODE_LABELS,
@@ -20,6 +21,8 @@ interface DaemonTask {
   queuedAt?: number
   reason?: string
   yielding?: boolean
+  progressState?: string
+  progressDetail?: string
 }
 interface HistoryEntry {
   id: string
@@ -96,9 +99,10 @@ export function taskRunRows(context: TaskRunsContext, now = Date.now()) {
       workerId: t.workerId,
       runRecordId: id,
       runMode: argOf(t.args, 'run-mode'),
-      status: t.yielding ? '准备让位' : '运行中',
+      status: t.yielding ? '准备让位' : t.progressState === WORK_HOURS_WAITING_STATE ? '等待工作时间' : '运行中',
       startedAt: now - (t.uptime ?? 0),
-      endedAt: null
+      endedAt: null,
+      note: t.progressState === WORK_HOURS_WAITING_STATE ? t.progressDetail : ''
     })
   }
   for (const t of context.queue ?? []) {

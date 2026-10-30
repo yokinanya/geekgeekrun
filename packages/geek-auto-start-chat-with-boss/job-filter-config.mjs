@@ -1,6 +1,7 @@
 import { matchesSalaryDetails, parseCompanySize, explicitJobNature } from '@geekgeekrun/utils/job-values.cjs'
 import { normalizeJobSources } from './search-source.mjs'
 import { normalizeRunBudget } from './run-settings.mjs'
+import { normalizeAiJobMatch } from './ai-job-match.mjs'
 // One contract for the settings UI and execution. Codes are persisted; BOSS returns text.
 export const EXPERIENCE_OPTIONS = Object.freeze({
   101: '经验不限', 102: '应届生', 103: '1年以内', 104: '1-3年',
@@ -53,6 +54,7 @@ export function createJobDetailMatcher(config = {}, matchLogic = config.jobDetai
   return job => !checks.length || (matchLogic === 2 ? checks.some(check => check(job)) : checks.every(check => check(job)))
 }
 export function validateJobFilterConfig(config = {}) {
+  const aiMatch = normalizeAiJobMatch(config.aiJobMatch)
   normalizeRunBudget(config.autoChatRunBudget)
   normalizeJobSources(config.jobSourceList)
   normalizeExperienceSelections(config.expectWorkExpList ?? [])
@@ -67,8 +69,9 @@ export function validateJobFilterConfig(config = {}) {
     throw new Error('薪资单位无效，请重新选择')
   if (config.expectSalaryLow != null && config.expectSalaryLow !== '' && config.expectSalaryHigh != null && config.expectSalaryHigh !== '' && Number(config.expectSalaryLow) > Number(config.expectSalaryHigh))
     throw new Error('薪资上限不能低于下限')
-  createJobDetailMatcher(config)
+  if (!aiMatch.enabled) createJobDetailMatcher(config)
   for (const [key, label] of [['expectJobRegExpStr', '旧岗位条件'], ['blockCompanyNameRegExpStr', '排除公司'], ['posterHrTitleRegExpStr', '招聘者身份']]) {
+    if (aiMatch.enabled && key === 'expectJobRegExpStr') continue
     if (!String(config[key] ?? '').trim()) continue
     try { new RegExp(config[key], 'im') }
     catch { throw new Error(label + '匹配规则无效，请修改后再保存') }

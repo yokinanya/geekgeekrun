@@ -1,0 +1,249 @@
+/* Shared surfaces for configuration, settings, and data workspaces. */
+.ux-shell .ux-card,
+.ux-shell .ux-inner--config .ux-card {
+  border: 1px solid var(--ux-line);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.ux-shell .ux-inner--config .ux-card {
+  padding: 24px 28px 28px;
+}
+
+.ux-shell .ux-card h2,
+.ux-shell .ux-inner--config .ux-card h2 {
+  color: #263c35;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ux-shell .ux-card h2::before,
+.ux-shell .ux-card h3::before {
+  width: 3px;
+  background: #328776;
+}
+
+.ux-shell .ux-hint {
+  color: #667970;
+}
+
+.ux-shell .ux-template-bar {
+  padding: 12px 14px;
+  border: 1px solid var(--ux-line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.ux-shell .ux-template-bar > label,
+.ux-shell .ux-template-label {
+  color: #445b52;
+  font-weight: 600;
+}
+
+.ux-shell .ux-el-steps {
+  padding: 18px 20px 15px;
+  border: 1px solid var(--ux-line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.ux-shell .ux-el-step .el-step__title {
+  font-size: 13px;
+}
+
+.ux-shell .ux-mode-choices.el-radio-group {
+  gap: 12px;
+}
+
+.ux-shell .ux-mode-choice.el-radio {
+  padding: 18px;
+  border-color: #dce5e0;
+  border-radius: 4px;
+}
+
+.ux-shell .ux-mode-choice.el-radio.is-checked {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.ux-shell .ux-section-rail {
+  border-color: var(--ux-line);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.ux-shell .ux-company-preview,
+.ux-shell .ux-pace-summary {
+  background: #f4f7f5;
+}
+
+.ux-shell .ux-rail-item[aria-current="location"] {
+  background: #e8f3ee;
+  color: #17665f;
+}
+
+.ux-shell .ux-inner > .el-tabs > .el-tabs__header {
+  margin-bottom: 12px;
+}
+
+.ux-shell .ux-inner > .el-tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+  background: #dce4e1;
+}
+
+.ux-shell .ux-inner > .el-tabs .el-tabs__item {
+  height: 42px;
+  color: #5c7067;
+  font-weight: 600;
+}
+
+.ux-shell .ux-inner > .el-tabs .el-tabs__item.is-active {
+  color: var(--el-color-primary);
+}
+
+.ux-shell .ux-data-panel {
+  border: 1px solid var(--ux-line);
+  border-radius: 4px;
+  background: #fff;
+}
+
+.ux-shell .ux-data-panel > .ux-native-data.page-wrap,
+.ux-shell .ux-data-panel > .ux-legacy,
+.ux-shell .ux-data-panel > .run-data-table {
+  padding: 0 14px;
+}
+
+.ux-shell .run-data-table__toolbar {
+  gap: 8px;
+  padding: 14px 0;
+}
+
+.ux-shell .run-data-table__conditions {
+  padding-bottom: 12px;
+}
+
+.ux-shell .run-data-table .el-table,
+.ux-shell .ux-task-table {
+  --el-table-header-bg-color: #f4f7f5;
+  --el-table-row-hover-bg-color: #f5f9f7;
+  --el-table-border-color: #e7ede9;
+  --el-table-header-text-color: #51655c;
+}
+
+.ux-shell .run-data-table .el-table th.el-table__cell,
+.ux-shell .ux-task-table th.el-table__cell {
+  font-weight: 600;
+}
+
+.ux-shell .ux-task-row,
+.ux-shell .ux-task-metric {
+  border: 1px solid #e5ece8;
+  border-radius: 4px;
+  background: #f8faf9;
+}
+
+.ux-shell .ux-task-curtain {
+  background: rgb(246 247 246 / 0.94);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.ux-shell .ux-task-curtain-card {
+  border-color: var(--ux-line);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.ux-shell .ux-rail-toggle {
+  width: 28px;
+  border-radius: 4px 0 0 4px;
+  filter: none;
+}
+
+.ux-shell .ux-rail-toggle.is-collapsed,
+.ux-shell .ux-rail-toggle.is-collapsed:hover {
+  width: 44px;
+}
+
+.ux-shell .ux-rail-toggle:hover {
+  width: 28px;
+}
+
+.ux-shell .ux-rail-toggle-text span {
+  writing-mode: horizontal-tb;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.ux-shell .ux-rail-toggle::before,
+.ux-shell .ux-rail-toggle::after {
+  display: none;
+}
+
+.ux-shell .ux-spotlight,
+.ux-shell .ux-spotlight::before,
+.ux-shell .ux-live-dot {
+  box-shadow: none;
+  animation: none;
+}
+
+.ux-shell .ux-spotlight::before {
+  border-radius: 3px;
+}
+
+.ux-shell .ux-scheduled-runs {
+  margin: 0 0 20px;
+}
+
+.ux-shell .ux-scheduled-runs h2 {
+  font-size: 18px;
+}
+
+.ux-shell .ux-task-page-head .ux-workspace-heading {
+  margin-bottom: 0;
+}
+
+.ux-shell .ux-task-page-head {
+  margin-bottom: 20px;
+}
+
+.ux-shell .ux-inner--settings .ux-card {
+  max-width: 1040px;
+  padding: 24px 28px;
+}
+
+.ux-shell .ux-preference-group + .ux-preference-group {
+  border-top-color: #e7ede9;
+}
+
+.ux-shell .el-input__wrapper,
+.ux-shell .el-select__wrapper,
+.ux-shell .el-textarea__inner {
+  border-radius: 4px;
+}
+
+.ux-shell .el-button:not(.is-link):not(.is-text) {
+  border-radius: 4px;
+}
+
+.ux-shell .el-tag {
+  border-radius: 3px;
+}
+
+@media (max-width: 720px) {
+  .ux-shell .ux-inner--config .ux-card,
+  .ux-shell .ux-inner--settings .ux-card {
+    padding: 20px 16px;
+  }
+
+  .ux-shell .ux-data-panel > .ux-native-data.page-wrap,
+  .ux-shell .ux-data-panel > .ux-legacy,
+  .ux-shell .ux-data-panel > .run-data-table {
+    padding: 0 10px;
+  }
+
+  .ux-shell .run-data-table__search {
+    max-width: 100%;
+  }
+}

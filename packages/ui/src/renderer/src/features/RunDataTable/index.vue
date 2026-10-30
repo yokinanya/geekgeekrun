@@ -8,6 +8,9 @@
         clearable
         :prefix-icon="Search"
         :placeholder="`搜索${searchableLabels}`"
+        :aria-label="`搜索${searchableLabels}`"
+        name="record-search"
+        autocomplete="off"
         class="run-data-table__search"
         @keydown.enter="applyKeyword"
         @clear="applyKeyword"
@@ -163,18 +166,16 @@
           @header-dragend="handleHeaderDragend"
         >
           <template #empty>
-            <div class="run-data-table__empty">
-              <p>{{ emptyText || '暂无数据' }}</p>
-              <ElButton
-                v-if="emptyAction"
-                size="small"
-                type="primary"
-                plain
-                @click="jumpStore.jump({ dataset: '__page__', rows: [], label: emptyAction.label, page: emptyAction.page })"
-              >
-                {{ emptyAction.label }}
-              </ElButton>
-            </div>
+            <TableEmptyState
+              :loading="isTableLoading"
+              :error="loadError"
+              :filtered="hasConditions"
+              :message="emptyText"
+              :action="emptyAction"
+              @clear="clearAllConditions"
+              @retry="fetchData"
+              @navigate="openEmptyAction"
+            />
           </template>
           <ElTableColumn type="selection" width="36" fixed="left" reserve-selection />
           <ElTableColumn
@@ -346,6 +347,8 @@ import StatsPanel from './StatsPanel.vue'
 import JobSummaryPanel from './JobSummaryPanel.vue'
 import ImportDialog from './ImportDialog.vue'
 import FavoriteFolderPicker from './FavoriteFolderPicker.vue'
+import TableEmptyState from './TableEmptyState.vue'
+import { useRunDataQuery } from './use-query'
 import { useRunDataJumpStore } from '../../store'
 
 const OPEN_ONLINE_LIMIT = 20
@@ -678,6 +681,12 @@ onBeforeUnmount(() => {
 
 // ---------- opened from elsewhere with filters (task history) ----------
 const jumpStore = useRunDataJumpStore()
+function openEmptyAction() {
+  if (!props.emptyAction) return
+  jumpStore.jump({
+    dataset: '__page__', rows: [], label: props.emptyAction.label, page: props.emptyAction.page
+  })
+}
 function applyJump() {
   if (props.ignoreJumps) return
   const target = jumpStore.take(props.dataset)
@@ -691,54 +700,23 @@ watch(() => jumpStore.pending, applyJump)
 
 // ---------- data ----------
 const pageSizeList = [10, 20, 50, 100, 200, 500]
-const pagination = ref({
-  pageNo: 1,
-  pageSize: prefs.value.pageSize ?? datasetDef.value.defaultPageSize ?? 100,
-  totalItemCount: 0
-})
-const tableData = ref<RunDataRow[]>([])
 const tableRef = ref<InstanceType<typeof ElTable>>()
-const isTableLoading = ref(false)
 const getRowKey = (row: RunDataRow) => String(row[datasetDef.value.rowKey])
-
-let requestSeq = 0
-async function fetchData() {
-  const seq = ++requestSeq
-  isTableLoading.value = true
-  try {
-    const { data: res } = (await electron.ipcRenderer.invoke(
-      'run-data-query',
-      toPlain({
-        ...query.value,
-        pageNo: pagination.value.pageNo,
-        pageSize: pagination.value.pageSize
-      })
-    )) as { data: PagedRes<RunDataRow> }
-    if (seq !== requestSeq) return
-    tableData.value = res.data
-    pagination.value.totalItemCount = res.totalItemCount
-    pagination.value.pageNo = res.pageNo
-  } catch (err) {
-    if (seq !== requestSeq) return
-    console.log(err)
-    toast.error(`加载数据失败：${(err as Error)?.message ?? err}`)
-    tableData.value = []
-  } finally {
-    if (seq === requestSeq) {
-      tableRef.value?.setScrollTop(0)
-      isTableLoading.value = false
-    }
+const { pagination, tableData, isTableLoading, loadError, fetchData } = useRunDataQuery({
+  query,
+  pageSize: prefs.value.pageSize ?? datasetDef.value.defaultPageSize ?? 100,
+  queryPage: async (payload) => {
+    const { data } = await electron.ipcRenderer.invoke('run-data-query', toPlain(payload))
+    return data as PagedRes<RunDataRow>
+  },
+  onError: (error) => {
+    console.error(error)
+    toast.error(`加载数据失败：${(error as Error)?.message ?? error}`)
+  },
+  onSettled: () => {
+    tableRef.value?.setScrollTop(0)
   }
-}
-
-watch(
-  () => JSON.stringify(query.value),
-  () => {
-    pagination.value.pageNo = 1
-    fetchData()
-  }
-)
-fetchData()
+})
 
 function handlePageSizeChange(size: number) {
   prefs.value.pageSize = size
@@ -1089,17 +1067,6 @@ onBeforeUnmount(() => {
 .run-data-table .el-table__empty-text {
   line-height: 1.6;
   color: var(--el-text-color-secondary);
-}
-.run-data-table__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  p {
-    margin: 0;
-    line-height: 1.6;
-    color: var(--el-text-color-secondary);
-  }
 }
 .run-data-cell-menu {
   position: fixed;

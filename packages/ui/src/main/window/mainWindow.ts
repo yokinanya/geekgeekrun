@@ -9,6 +9,7 @@ export let mainWindow: BrowserWindow | null = null
 
 // tells the renderer that the window has a native glass material behind transparent areas
 const NATIVE_GLASS_ARG = '--ggr-native-glass'
+const MAIN_WINDOW_MIN_WIDTH = 960
 
 export function createMainWindow(): BrowserWindow {
   const material = nativeWindowMaterial(process.platform, os.release()) as BrowserWindowConstructorOptions
@@ -17,7 +18,7 @@ export function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 720,
-    minWidth: 1280,
+    minWidth: MAIN_WINDOW_MIN_WIDTH,
     show: false,
     autoHideMenuBar: true,
     frame: true,
@@ -26,7 +27,7 @@ export function createMainWindow(): BrowserWindow {
           /* icon */
         }
       : {}),
-    // Unsupported native materials (including Win10) use in-app renderer glass.
+    // Unsupported native materials (including Win10) use an opaque window.
     ...material,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),

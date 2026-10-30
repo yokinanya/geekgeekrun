@@ -75,11 +75,15 @@ test('actual daemon requests settle errors and timeouts without detached rejecte
 const dbModule = await compile('../src/main/flow/OPEN_SETTING_WINDOW/utils/db/index.ts', /worker\/index\?nodeWorker&url$/,
   'export default () => globalThis.__ggrTaskContract.createWorker();')
 const runnerModule = await compile('../src/main/features/run-common.ts',
-  /connect-to-daemon$|utils\/db$|task-resume$|runtime-file-utils\.mjs$|run-budget-store\.mjs$|task-config-snapshot\.mjs$|run-settings\.mjs$|search-source\.mjs$|^electron$/,
+  /connect-to-daemon$|utils\/db$|task-resume$|run-policy$|boss-login-check$|runtime-file-utils\.mjs$|run-budget-store\.mjs$|task-config-snapshot\.mjs$|run-settings\.mjs$|search-source\.mjs$|daily-chat-quota\.mjs$|^electron$/,
   `const f=globalThis.__ggrTaskContract;
    export const sendToDaemon=f.send,daemonEE=f.events,saveAndGetCurrentRunRecord=f.saveRecord;
    export const app={isPackaged:true},runtimeFolderPath='/fixture',storageFilePath='/fixture';
    export const readConfigFile=()=>({}),createBudgetStore=()=>({save(){}}),writeTaskConfigSnapshot=()=>'/fixture/snapshot';
+   const unexpectedGreetingDependency=()=>{throw Error('Unexpected greeting-only dependency in the non-greeting startup contract');};
+   export const saveRunConfigSnapshot=unexpectedGreetingDependency,jobConfigSnapshot=unexpectedGreetingDependency;
+   export const withGlobalRunPolicy=unexpectedGreetingDependency,readGlobalRunPolicy=unexpectedGreetingDependency;
+   export const checkBossLoginStatus=unexpectedGreetingDependency,createDailyQuotaStore=unexpectedGreetingDependency;
    export const readRunSettings=()=>({runMode:'collect'}),normalizeJobSources=()=>[],initializeAutoChatResume=()=>{},readAutoChatResume=()=>f.resume;`)
 
 function taskFixture(t, reply) {

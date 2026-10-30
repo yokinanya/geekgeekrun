@@ -141,6 +141,21 @@ test('one BOSS task runs at a time; others wait in order', async () => {
   } finally { d.close() }
 })
 
+test('follow-up waiting for work hours gives way without consuming the twenty-minute time slice', async () => {
+  const d = await startDaemon()
+  try {
+    await d.start(FOLLOW, { FAKE_WORK_HOURS_WAITING: '1' })
+    await d.ready(FOLLOW)
+    const started = Date.now()
+    await d.start(AUTO)
+    await d.ready(AUTO)
+    assert.ok(Date.now() - started < 5000)
+    assert.deepEqual(await d.running(), [AUTO])
+    assert.deepEqual(await d.queued(), [`${FOLLOW}:yielded`])
+    assert.ok(!d.events.some(event => event.type === 'worker-exited' && event.workerId === FOLLOW))
+  } finally { d.close() }
+})
+
 test('a stopping worker holds its slot until it exits, including an immediate restart of the same task', async () => {
   const d = await startDaemon()
   try {

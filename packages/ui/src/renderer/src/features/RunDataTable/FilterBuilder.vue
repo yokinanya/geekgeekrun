@@ -13,6 +13,7 @@
         v-model="row.field"
         filterable
         placeholder="字段"
+        aria-label="筛选字段"
         size="small"
         class="w150px flex-none"
         @change="handleFieldChange(row)"
@@ -23,6 +24,7 @@
         v-model="row.op"
         size="small"
         class="w100px flex-none"
+        aria-label="筛选比较方式"
         :disabled="!row.field"
         @change="handleOpChange(row)"
       >
@@ -45,6 +47,7 @@
             size="small"
             class="w-full"
             placeholder="选择值"
+            :aria-label="`${fieldOf(row)!.label}的筛选值`"
           >
             <ElOption
               v-for="opt in fieldOf(row)!.enumOptions"
@@ -81,6 +84,7 @@
               size="small"
               controls-position="right"
               placeholder="最小值"
+              :aria-label="`${fieldOf(row)!.label}的最小值`"
               class="flex-1"
             />
             <span>~</span>
@@ -89,6 +93,7 @@
               size="small"
               controls-position="right"
               placeholder="最大值"
+              :aria-label="`${fieldOf(row)!.label}的最大值`"
               class="flex-1"
             />
           </template>
@@ -98,12 +103,27 @@
             size="small"
             controls-position="right"
             class="!w-full"
+            :aria-label="`${fieldOf(row)!.label}的筛选值`"
           />
           <!-- string -->
-          <ElInput v-else v-model="row.value" size="small" placeholder="输入值" clearable />
+          <ElInput
+            v-else
+            v-model="row.value"
+            size="small"
+            placeholder="输入值"
+            clearable
+            :aria-label="`${fieldOf(row)!.label}的筛选值`"
+          />
         </template>
       </div>
-      <ElButton size="small" link type="danger" :icon="Delete" @click="draft.splice(index, 1)" />
+      <ElButton
+        size="small"
+        link
+        type="danger"
+        :icon="Delete"
+        :aria-label="`删除第${index + 1}个筛选条件`"
+        @click="draft.splice(index, 1)"
+      />
     </div>
     <ElButton size="small" :icon="Plus" @click="addRow">添加条件</ElButton>
     <template #footer>

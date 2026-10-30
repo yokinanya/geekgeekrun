@@ -2,6 +2,9 @@ import { deferred, type Deferred } from '../../../../common/utils/deferred'
 import { sendToast } from '../../../utils/toast'
 import { ipcMain, shell, app, dialog, BrowserWindow } from 'electron'
 import { initUxIpc } from '../../../features/ux-config'
+import { initResumeMatchingIpc } from '../../../features/resume-matching/ipc'
+import { initConfigurationArchiveIpc } from '../../../features/configuration-archive/ipc'
+import { matchManualJob } from '../../../features/resume-matching/manual'
 import {
   keepAutoReminderSecrets,
   redactLlmConfigList,
@@ -118,6 +121,8 @@ import { ensureConfigFileExist } from '@geekgeekrun/geek-auto-start-chat-with-bo
 
 export default function initIpc() {
   initUxIpc()
+  initResumeMatchingIpc()
+  initConfigurationArchiveIpc()
   ipcMain.handle('save-config-file-from-ui', async (_ev, payload) => {
     payload = JSON.parse(payload)
     ensureConfigFileExist()
@@ -559,7 +564,7 @@ export default function initIpc() {
           history?: object[]
         }
       | undefined
-    // only what the table needs (no screenshots or runtime storage)
+    // Copy only the progress text needed by the table, without runtime storage or screenshots.
     const keep = ({
       workerId,
       args,
@@ -567,16 +572,18 @@ export default function initIpc() {
       yielding,
       position,
       queuedAt,
-      reason
-    }: Record<string, unknown>) => ({
-      workerId,
-      args,
-      uptime,
-      yielding,
-      position,
-      queuedAt,
-      reason
-    })
+      reason,
+      runtimeStorage
+    }: Record<string, unknown>) => {
+      const progress = (runtimeStorage as {
+        taskProgress?: { progress?: { state?: string; detail?: string } }
+      } | undefined)?.taskProgress?.progress
+      return {
+        workerId, args, uptime, yielding, position, queuedAt, reason,
+        progressState: progress?.state,
+        progressDetail: progress?.detail
+      }
+    }
     return {
       ...payload,
       context: {
@@ -737,7 +744,9 @@ export default function initIpc() {
   })
   // 资料库 → 打招呼: press 立即沟通 on the job page in the BOSS browser (see LAUNCH_BOSS_SITE)
   ipcMain.handle('greet-job-manually', async (ev, { encryptJobId }: { encryptJobId: string }) => {
-    if (!encryptJobId) return { status: 'failed', message: '缺少职位ID' }
+    if (typeof encryptJobId !== 'string' || !encryptJobId.trim()) return { status: 'failed', message: '缺少职位ID' }
+    const match = await matchManualJob({ encryptJobId, query: queryRunData })
+    if (match) return match
     if (!(await ensureBossSite(ev))) return { status: 'failed', message: '未找到可用的浏览器' }
     const requestId = randomUUID()
     const result = new Promise<Record<string, unknown>>((resolve) => {

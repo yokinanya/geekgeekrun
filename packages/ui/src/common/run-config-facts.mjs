@@ -28,11 +28,15 @@ export function actualRunFacts(config) {
     for (const key of groups[group] || []) if (Object.hasOwn(common, key)) boss[key] = common[key]
   const show = v => Array.isArray(v) ? v.join('、') || '不限' : v == null || v === '' ? '不限' : typeof v === 'object' ? JSON.stringify(v) : String(v)
   const p = boss.autoChatRunPolicy, rest = boss.autoChatTimedRest
+  const aiMatch = boss.aiJobMatch?.enabled === true
   return [
     ['运行方式', boss.autoChatRunMode === 'collect' ? '只收集岗位' : '自动打招呼'],
-    ['岗位名称匹配规则', show(boss.expectJobNameRegExpStr || boss.expectJobRegExpStr)],
-    ['职位分类匹配规则', show(boss.expectJobTypeRegExpStr)],
-    ['岗位描述匹配规则', show(boss.expectJobDescRegExpStr)],
+    ...(aiMatch ? [['AI 简历匹配', `判断适合且至少 ${boss.aiJobMatch.minScore} 分；低分略过，分析失败暂停`],
+      ['匹配所用简历', config['resumes.json']?.[0]?.name || '未记录简历'],
+      ['求职方向', boss.aiJobMatch.instructions || '按简历与岗位职责判断']] : []),
+    ['岗位名称匹配规则', aiMatch ? '交给 AI 判断' : show(boss.expectJobNameRegExpStr || boss.expectJobRegExpStr)],
+    ['职位分类匹配规则', aiMatch ? '交给 AI 判断' : show(boss.expectJobTypeRegExpStr)],
+    ['岗位描述匹配规则', aiMatch ? '交给 AI 判断' : show(boss.expectJobDescRegExpStr)],
     ['名称、分类与描述匹配', Number(boss.jobDetailRegExpMatchLogic || 1) === 1 ? '全部条件满足' : '任一条件满足'],
     ['工作城市', show(boss.expectCityList)],
     ['薪资范围', boss.expectSalaryLow == null && boss.expectSalaryHigh == null ? '不限' : `${boss.expectSalaryLow ?? '不限'}—${boss.expectSalaryHigh ?? '不限'}（${({ 1: '千元/月', 2: '万元/年', 3: '元/天', 4: '元/时' })[boss.expectSalaryCalculateWay || 1]}）`],

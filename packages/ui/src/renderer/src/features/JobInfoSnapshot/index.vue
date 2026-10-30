@@ -1,5 +1,6 @@
 <template>
   <el-form class="form" label-position="top" size="small">
+    <JobMatchReview :job="jobInfo" />
     <p class="detail-note">
       {{
         scene === 'jobLibrary'
@@ -44,6 +45,7 @@ import { PropType } from 'vue'
 import { type VChatStartupLog } from '@geekgeekrun/sqlite-plugin/src/entity/VChatStartupLog'
 import { type VMarkAsNotSuitLog } from '@geekgeekrun/sqlite-plugin/src/entity/VMarkAsNotSuitLog'
 import { transformUtcDateToLocalDate } from '@geekgeekrun/utils/date.mjs'
+import JobMatchReview from './JobMatchReview.vue'
 
 defineProps({
   jobInfo: {

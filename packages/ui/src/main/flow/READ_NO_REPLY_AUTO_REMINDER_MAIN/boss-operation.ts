@@ -1,6 +1,5 @@
 import { errorMessage } from '../../../common/utils/error'
-import { Page } from "puppeteer";
-import { sleepWithRandomDelay, sleep } from "@geekgeekrun/utils/sleep.mjs";
+export { sendMessage, sendLookForwardReplyEmotion } from './send-message';
 import { completes } from "@geekgeekrun/utils/gpt-request.mjs";
 import {
   recordGptCompletionRequest,
@@ -18,25 +17,6 @@ import {
   completionOptions,
 } from "../../../common/model-config.mjs";
 import { LlmModelUsageRecord } from "@geekgeekrun/sqlite-plugin/dist/entity/LlmModelUsageRecord";
-
-export const sendLookForwardReplyEmotion = async (page: Page) => {
-  const previous = await lastSentMessageKey(page);
-  const emotionEntryButtonProxy = await page.$(
-    ".chat-conversation .message-controls .btn-emotion",
-  );
-  await emotionEntryButtonProxy!.click();
-  await sleepWithRandomDelay(1000);
-  const duckEmotionTabEntryProxy = await page.$(
-    ".chat-conversation .message-controls .emotion .emotion-tab .emotion-sort:nth-child(3)",
-  );
-  await duckEmotionTabEntryProxy!.click();
-  await sleepWithRandomDelay(1500);
-  const lookForwardReplyEmojiProxy = await page.$(
-    `.chat-conversation .message-controls .emotion .emotion-box img[title=盼回复]`,
-  );
-  await lookForwardReplyEmojiProxy!.click();
-  await waitForSentMessage(page, previous);
-};
 
 const RESUME_PLACEHOLDER = `__REPLACE_REAL_RESUME_HERE__`;
 export const defaultPromptMap = {
@@ -238,58 +218,4 @@ export async function getGptContent(chatRecords) {
     })
   ).responseText;
   return textToSend;
-}
-
-async function lastSentMessageKey(page: Page) {
-  return page.evaluate(() => {
-    const list =
-      (document.querySelector(".message-content .chat-record") as any)?.__vue__?.list$ ||
-      [];
-    const last = list.filter((item) => item.isSelf).at(-1);
-    return last
-      ? String(last.mid ?? last.id ?? last.messageId ?? "") +
-          ":" +
-          String(last.time ?? "")
-      : "";
-  });
-}
-async function waitForSentMessage(page: Page, previous: string) {
-  await page
-    .waitForFunction(
-      (key) => {
-        const list =
-          (document.querySelector(".message-content .chat-record") as any)?.__vue__
-            ?.list$ || [];
-        const last = list.filter((item) => item.isSelf).at(-1);
-        if (!last) return false;
-        const current =
-          String(last.mid ?? last.id ?? last.messageId ?? "") +
-          ":" +
-          String(last.time ?? "");
-        return current !== key && [1, 2].includes(last.status);
-      },
-      { timeout: 15000 },
-      previous,
-    )
-    .catch(() => {
-      throw new Error(
-        "SEND_CONFIRMATION_UNCERTAIN：无法确认消息是否发送，请在BOSS中核对后重新开始",
-      );
-    });
-}
-
-export async function sendMessage(page: Page, textToSend: string) {
-  const previous = await lastSentMessageKey(page);
-  const chatInputSelector = `.chat-conversation .message-controls .chat-input`;
-  const chatInputHandle = (await page.$(chatInputSelector))!;
-  await chatInputHandle.click();
-  await sleep(500);
-  await chatInputHandle.click();
-  await chatInputHandle.type(textToSend, {
-    delay: 50,
-  });
-  await sleep(1000);
-  const sendButtonSelector = `.chat-conversation .message-controls .chat-op .btn-send:not(.disabled)`;
-  await page.click(sendButtonSelector);
-  await waitForSentMessage(page, previous);
 }

@@ -29,6 +29,7 @@ const shutdownReady = import('../../utils/worker-shutdown.mjs').then(({ installW
     progress.childPid = child.pid
   }
   if (process.env.FAKE_PROGRESS) progress.collected = Number(process.env.FAKE_PROGRESS)
+  if (process.env.FAKE_WORK_HOURS_WAITING) progress.state = 'waiting-work-hours'
   void ask({ type: 'worker-to-gui-message', workerId, data: { type: 'task-progress', progress } })
   if (process.env.FAKE_KIND === 'finite') {
     await new Promise((r) => setTimeout(r, Number(process.env.FAKE_MS || 300)))

@@ -8,6 +8,7 @@ import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import atomic from '../../utils/atomic-file.cjs'
+import { initialFollowWorkHours } from '../src/common/follow-work-hours.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const compiled = await build({ entryPoints: [path.join(here, '../src/main/features/ux-config.ts')],
@@ -95,6 +96,35 @@ test('concurrent settings submissions retain revision checks and never partially
   assert.equal(results[1].status, 'rejected')
   assert.equal(f.readConfig('boss.json').expectJobNameRegExpStr, 'first')
   assert.equal(f.readStorage('ux-workspace.json').revision, 1)
+})
+
+test('follow work hours round trip through actual settings IPC and retain unrelated reminder settings', async t => {
+  const f = fixture(t)
+  const workHours = { ...initialFollowWorkHours(), weekdays: [1, 3, 5], start: '22:00', end: '06:00' }
+  const follow = { source: 'emotion', opening: 'fixed', days: 21, interval: 10, context: 8, workHours }
+  const payload = f.payload({ autoReminder: {
+    rechatContentSource: 1, rechatLimitDay: 21, throttleIntervalMinutes: 10,
+    recentMessageQuantityForLlm: 8, workHours
+  } })
+  payload.state.follow = follow
+  await f.invoke('ux-save-state', payload)
+  assert.deepEqual(f.readConfig('boss.json').autoReminder.workHours, workHours)
+  assert.equal(f.readConfig('boss.json').autoReminder.geminiApiKey, 'fixture-legacy-key')
+  const restored = await f.invoke('ux-load-state')
+  assert.deepEqual(restored.config['boss.json'].autoReminder.workHours, workHours)
+  assert.deepEqual(restored.uxState.follow, follow)
+})
+
+test('invalid follow work hours reject the actual IPC save before changing configuration or revision', async t => {
+  const f = fixture(t)
+  const before = fs.readFileSync(path.join(f.config, 'boss.json'), 'utf8')
+  const payload = f.payload({ autoReminder: {
+    rechatContentSource: 1, rechatLimitDay: 21, throttleIntervalMinutes: 10,
+    recentMessageQuantityForLlm: 8, workHours: { ...initialFollowWorkHours(), weekdays: [] }
+  } })
+  await assert.rejects(f.invoke('ux-save-state', payload), /至少一个工作日/)
+  assert.equal(fs.readFileSync(path.join(f.config, 'boss.json'), 'utf8'), before)
+  assert.equal(f.readStorage('ux-workspace.json').revision, 0)
 })
 
 test('a corrupt workspace is kept without resetting its revision or leaking parse fragments', async t => {

@@ -1,3 +1,5 @@
+import { RESUME_CONTENT_WARNING_LENGTH, validateResumeDocument } from '../resume-document.mjs'
+
 export interface ResumeContent {
   name: string
   workYearDesc: string
@@ -23,69 +25,49 @@ export interface ResumeContent {
 }
 
 export function formatResumeJsonToMarkdown(resume) {
-  const basicInfoText = [
-    ['# 姓名', resume.content.name],
-    ['# 工作年限', resume.content.workYearDesc],
-    ['# 期望职位', resume.content.expectJob],
-    ['# 个人优势', resume.content.userDescription]
-  ]
-    .filter((it) => {
-      return Boolean(it[1]?.trim())
-    })
-    .map((it) => it.join('\n'))
-    .join('\n\n')
-
-  let formattedWorkExpText = resume.content.geekWorkExpList
-    .filter((it) => Boolean(it.company?.trim()))
-    .map((it) => {
-      const info = [
-        [`职务`, it.positionName],
-        [`任职时间`],
-        [`工作描述`, it.workDescription],
-        [`工作业绩`, it.performance]
-      ].filter((it) => {
-        return Boolean(it[1]?.trim())
-      })
-      return [[`## ${it.company}`], ...info].map((it) => it.join('\n')).join('\n\n')
-    })
-    .join('\n')
-  if (formattedWorkExpText?.trim()) {
-    formattedWorkExpText = '# 工作经历\n' + formattedWorkExpText
-  }
-
-  let formattedProjWorkExpText = resume.content.geekProjExpList
-    .filter((it) => Boolean(it.name?.trim()))
-    .map((it) => {
-      const info = [
-        [`## ${it.name}`],
-        [`项目角色`, it.roleName],
-        [`项目时间`],
-        [`工作描述`, it.projectDescription],
-        [`工作业绩`, it.performance]
-      ].filter((it) => {
-        return Boolean(it[1]?.trim())
-      })
-
-      return [[`## ${it.name}`], ...info].map((it) => it.join('\n')).join('\n\n')
-    })
-    .join('\n')
-  if (formattedProjWorkExpText?.trim()) {
-    formattedProjWorkExpText = '# 项目经历\n' + formattedProjWorkExpText
-  }
-
-  const result = `${basicInfoText}\n\n${formattedWorkExpText}\n\n${formattedProjWorkExpText}`
-
-  return result
+  if (resume?.format !== undefined || resume?.text !== undefined) return validateResumeDocument(resume).text
+  if (!resume?.content) return ''
+  const content = resume.content as ResumeContent
+  return [
+    formatFields([['# 姓名', content.name], ['# 工作年限', content.workYearDesc],
+      ['# 期望职位', content.expectJob], ['# 个人优势', content.userDescription]]),
+    formatWorkExperiences(content.geekWorkExpList),
+    formatProjectExperiences(content.geekProjExpList)
+  ].filter(Boolean).join('\n\n')
 }
 
-export function checkIsResumeContentValid(resumeItem: { content: ResumeContent }) {
-  return (
+function formatFields(fields: Array<[string, string | undefined]>) {
+  return fields.filter(([, value]) => value?.trim()).map(pair => pair.join('\n')).join('\n\n')
+}
+
+function formatWorkExperiences(entries: ResumeContent['geekWorkExpList']) {
+  const text = entries.filter(item => item.company?.trim()).map(item =>
+    `## ${item.company}\n\n` + formatFields([['职务', item.positionName],
+      ['工作描述', item.workDescription], ['工作业绩', item.performance]])
+  ).join('\n\n')
+  return text ? '# 工作经历\n' + text : ''
+}
+
+function formatProjectExperiences(entries: ResumeContent['geekProjExpList']) {
+  const text = entries.filter(item => item.name?.trim()).map(item =>
+    `## ${item.name}\n\n` + formatFields([['项目角色', item.roleName],
+      ['工作描述', item.projectDescription], ['工作业绩', item.performance]])
+  ).join('\n\n')
+  return text ? '# 项目经历\n' + text : ''
+}
+
+export function checkIsResumeContentValid(resumeItem: { content?: ResumeContent; text?: string; format?: string }) {
+  if (resumeItem?.format !== undefined || resumeItem?.text !== undefined) {
+    try { return Boolean(validateResumeDocument(resumeItem).text) }
+    catch { return false }
+  }
+  return Boolean(
     !!resumeItem?.content &&
     resumeItem.content.geekProjExpList?.[0]?.name?.trim() &&
     resumeItem.content.geekWorkExpList?.[0]?.company?.trim()
   )
 }
 
-export function resumeContentEnoughDetect(resumeItem: { content: ResumeContent }) {
-  return resumeItem?.content && formatResumeJsonToMarkdown(resumeItem)?.length > 800
+export function resumeContentEnoughDetect(resumeItem: { content?: ResumeContent; text?: string }) {
+  return formatResumeJsonToMarkdown(resumeItem).length >= RESUME_CONTENT_WARNING_LENGTH
 }

@@ -126,6 +126,8 @@ function shouldYield(workerId) {
   const info = workers.get(workerId)
   if (!info || !QUEUED_WORKER_IDS.has(workerId) || PRIORITY_WORKER_IDS.has(workerId)) return false
   if (!taskQueue.length) return false
+  if (workerId === 'readNoReplyAutoReminderMain' &&
+    info.runtimeStorage?.taskProgress?.progress?.state === 'waiting-work-hours') return true
   if (PRIORITY_WORKER_IDS.has(taskQueue[0].workerId)) return true
   return Date.now() - (info.sliceStartTime || info.startTime) >= TIME_SLICE_MS
 }

@@ -32,6 +32,8 @@ export function jobComparisonScope(config) {
   boss.autoChatRunMode = settings.runMode
   boss.collectOnlyMatchingJobs = settings.collectOnlyMatchingJobs
   const scope = canonical({ boss, common: config['common-job-condition-config.json'],
-    companies: config['target-company-list.json'] })
+    companies: config['target-company-list.json'],
+    ...(boss.aiJobMatch?.enabled && !(settings.runMode === 'collect' && !settings.collectOnlyMatchingJobs)
+      ? { resumes: (config['resumes.json'] || []).map(item => item.text ?? item.content) } : {}) })
   return 'v1:' + createHash('sha256').update(JSON.stringify(scope)).digest('hex')
 }

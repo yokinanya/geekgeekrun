@@ -26,6 +26,8 @@ import { configWithBrowserAssistant } from '../../features/config-with-browser-a
 import { attachCollectAcceptance } from '../../features/collect-acceptance'
 import { installWorkerShutdown } from '@geekgeekrun/utils/worker-shutdown.mjs'
 import { createAutomaticRetry } from '@geekgeekrun/geek-auto-start-chat-with-boss/automatic-retry.mjs'
+import { normalizeAiJobMatch } from '@geekgeekrun/geek-auto-start-chat-with-boss/ai-job-match.mjs'
+import { jobMatchEvaluatorForRun } from '../../features/resume-matching'
 const { default: SqlitePlugin } = SqlitePluginModule
 
 let closeForShutdown: () => Promise<void> = async () => {}
@@ -220,6 +222,7 @@ const runAutoChat = async () => {
     mainFlowWillLaunch: new AsyncSeriesHook(['args']),
     jobDetailIsGetFromRecommendList: new AsyncSeriesHook(['userInfo']),
     jobMatchedForCollection: new AsyncSeriesHook(['detail']),
+    jobMatchEvaluation: new AsyncSeriesWaterfallHook<[unknown, unknown]>(['result', 'detail']),
     newChatWillStartup: new AsyncSeriesHook(['positionInfoDetail']),
     newChatStartup: new AsyncSeriesHook<[unknown, unknown]>(['positionInfoDetail', 'chatRunningContext']),
     jobMarkedAsNotSuit: new AsyncSeriesHook<[unknown, { markOp?: number } | undefined]>(['positionInfoDetail', 'markDetail']),
@@ -238,6 +241,16 @@ const runAutoChat = async () => {
   hooks.jobDetailIsGetFromRecommendList.tapPromise('TaskProgress', async (data) => {
     currentJob = jobLabel(data)
   })
+  const matchSettings = normalizeAiJobMatch(readConfigFile('boss.json').aiJobMatch)
+  if (matchSettings.enabled && !(runMode === 'collect' && readConfigFile('boss.json').collectOnlyMatchingJobs === false)) {
+    const evaluate = jobMatchEvaluatorForRun({ 'boss.json': readConfigFile('boss.json'), 'resumes.json': readConfigFile('resumes.json') })
+    hooks.jobMatchEvaluation.tapPromise('ResumeMatch', async (_, detail) => {
+      taskProgress.update(undefined, `AI 正在对比简历：${jobLabel(detail)}`)
+      const result = await evaluate(detail)
+      taskProgress.log('running', `AI 匹配 ${result.score} 分，${result.accepted ? '通过' : '略过'}：${jobLabel(detail)}；${result.reason}`)
+      return result
+    })
+  }
   hooks.jobMarkedAsNotSuit.tapPromise('TaskProgress', async (data, markDetail) => {
     taskProgress.log(
       'marked',
@@ -307,6 +320,13 @@ const runAutoChat = async () => {
       if (shutdown.isStopping()) return
       if (await stopForStorage(err)) return
       if (await stopForBudget(err)) return
+      if (err instanceof Error && err.message === 'AUTO_CHAT_AI_MATCH_FAILED') {
+        taskProgress.update(undefined, (err as Error & { detail?: string }).detail, 'blocked')
+        saveResume()
+        await closeBrowserWindow?.()
+        process.exit(AUTO_CHAT_ERROR_EXIT_CODE.LLM_UNAVAILABLE)
+        return
+      }
       try {
         if (await automaticRetry.recover(err)) continue
         if (shutdown.isStopping()) return

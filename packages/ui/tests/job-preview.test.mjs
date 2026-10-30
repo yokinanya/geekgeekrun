@@ -8,9 +8,10 @@ import { requiredJobConditionReasons, matchesExperience, escapeKeyword } from '.
 import { normalizeCitySelection, matchesCitySelection } from '../../geek-auto-start-chat-with-boss/city-filter.mjs'
 
 const source = fs.readFileSync(new URL('../src/renderer/src/page/Ux/index.js', import.meta.url), 'utf8')
-const body = source.slice(source.indexOf('    function evaluate(originalRow, d)'), source.indexOf('    const workerIds ='))
+const body = source.slice(source.indexOf('    function evaluate(originalRow, conditions)'), source.indexOf('    const workerIds ='))
 const ctx = vm.createContext({ missingJobFields, scopedMarkStrategy, parseSalaryDetails, matchesSalaryDetails,
   requiredJobConditionReasons, matchesExperience, normalizeCitySelection, matchesCitySelection, escape: escapeKeyword, cityOptions: [], activeLabels: [],
+  aiMatching: { value: { enabled: false } },
   strategyLabel: code => ({ 1: '在BOSS标记', 2: '本地冷却', 3: '略过' })[code] })
 vm.runInContext(body, ctx)
 const policy = { titles: [], categories: [], description: [], cities: [], companies: [], excluded: [], experience: [],

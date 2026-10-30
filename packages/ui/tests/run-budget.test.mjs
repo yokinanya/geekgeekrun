@@ -74,6 +74,7 @@ test('newly queued workers freeze budgets and declare both budget exits non-rest
   const initializations = [], checkpoints = []
   const config = { 'boss.json': { autoChatRunBudget: { requests: 7, detailRequests: 3, activeMinutes: 15 } }, 'common-job-condition-config.json': {}, 'target-company-list.json': [] }
   const context = vm.createContext({ AUTO_CHAT_ERROR_EXIT_CODE,
+    assertAiMatchingReady: config => assert.notEqual(config['boss.json'].aiJobMatch?.enabled, true),
     sendToDaemon: async message => { if (message.type === 'get-status') return {}; if (message.type === 'start-worker') dispatched = message; return {} },
     saveAndGetCurrentRunRecord: async () => ({ data: { id: 42 } }), saveRunConfigSnapshot: async () => {}, jobConfigSnapshot,
     withGlobalRunPolicy: config => ({ ...config, 'boss.json': { ...config['boss.json'], ...policyRunConfig({}) } }),

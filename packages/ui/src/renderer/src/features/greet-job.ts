@@ -14,7 +14,7 @@ export interface GreetableJob {
 }
 
 type GreetResult = {
-  status: 'sent' | 'already' | 'confirm-in-browser' | 'closed' | 'missing' | 'login' | 'failed'
+  status: 'sent' | 'already' | 'confirm-in-browser' | 'closed' | 'missing' | 'login' | 'failed' | 'not-matched'
   message?: string
 }
 
@@ -44,7 +44,7 @@ export async function greetJobManually(job: GreetableJob): Promise<boolean> {
         h(
           'p',
           { class: 'm-0 mt6px text-12px', style: { color: 'var(--el-text-color-secondary)' } },
-          '打招呼语使用你在BOSS中设置的招呼语；页面会保持打开，方便继续沟通。'
+          '打招呼语使用你在BOSS中设置的招呼语；启用 AI 匹配时会先核对简历与本机保存的岗位描述，匹配达标才开聊。页面会保持打开。'
         )
       ]),
       '手动打招呼',
@@ -70,6 +70,9 @@ export async function greetJobManually(job: GreetableJob): Promise<boolean> {
   }
   const detail = result.message ? `：${result.message}` : ''
   switch (result.status) {
+    case 'not-matched':
+      toast.warning({ title: '岗位未通过 AI 匹配', message: result.message || label })
+      return false
     case 'sent':
       toast.success({ title: '已打招呼', message: `已向「${label}」打招呼，已记入求职记录。` })
       return true

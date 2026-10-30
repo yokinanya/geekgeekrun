@@ -23,7 +23,7 @@ export function openSettingWindow() {
   whenReadyPromise.then(() => {
     // Set app user model id for windows
     electronApp.setAppUserModelId('com.electron')
-    // the UI is designed for light only; keep native materials (sidebar glass, menus) light too
+    // The UI is designed for light only; keep native menus and materials light too.
     nativeTheme.themeSource = 'light'
 
     // Default open or close DevTools by F12 in development

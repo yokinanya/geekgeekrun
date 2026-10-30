@@ -46,7 +46,10 @@ import { DEFAULT_CONSTANT_OPEN_CONTENT_SEGS } from '../../../common/constant'
 import { createTaskProgress } from '../../features/task-progress'
 import { yieldIfRequested } from '../../features/task-queue'
 import { isJsonStorageError } from '@geekgeekrun/utils/atomic-json.mjs'
+import { FollowWorkHoursClosedError, WORK_HOURS_WAITING_STATE } from '../../../common/follow-work-hours.mjs'
+import { followWorkHoursGate } from './work-hours'
 const taskProgress = createTaskProgress()
+const workHours = followWorkHoursGate(taskProgress)
 
 process.on('SIGTERM', () => {
   console.log('收到SIGTERM信号，正在退出')
@@ -306,6 +309,7 @@ const mainLoop = async () => {
       browser = null
     }
   }
+  await workHours.waitUntilOpen()
   let bossCookies = readStorageFile('boss-cookies.json')
   let cookieCheckResult = checkCookieListFormat(bossCookies)
   while (!cookieCheckResult) {
@@ -354,6 +358,7 @@ const mainLoop = async () => {
     '附件简历还没准备好',
     '设置合适的期望薪资范围'
   ].map((it) => new RegExp(it))
+  workHours.assertCanProcess()
   const activeBrowser: Browser = await bootstrap()
   browser = activeBrowser
   await Promise.all([launchBoss(activeBrowser)])
@@ -483,6 +488,7 @@ const mainLoop = async () => {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    workHours.assertCanProcess()
     // between conversations: the task queue may ask this run to make way for a queued task
     await yieldIfRequested(async () => {
       taskProgress.update(undefined, '排队中的任务先运行，本任务稍后自动继续', 'yielded')
@@ -625,38 +631,39 @@ const mainLoop = async () => {
         (throttleIntervalMinutes + 4 * Math.random()) * 60 * 1000
     ) {
       await sleepWithRandomDelay(3250)
+      workHours.assertCanProcess()
       const messageList = historyMessageList
         .filter((it) => it.bizType !== 101 && it.isSelf)
         .slice(-recentMessageQuantityForLlm)
       if (!messageList?.length) {
         if (openContentSource === OPEN_CONTENT_SOURCE.CONSTANT_CONTENT) {
-          await sendMessage(pageMapByName.boss!, constantOpenContent)
+          await sendMessage(pageMapByName.boss!, constantOpenContent, workHours)
         } else {
           try {
             const textToSend = await getGptContent(messageList)
-            await sendMessage(pageMapByName.boss!, textToSend)
+            await sendMessage(pageMapByName.boss!, textToSend, workHours)
           } catch (err) {
             console.log(err)
-            if ((err as Error)?.message?.includes('SEND_CONFIRMATION_UNCERTAIN')) throw err
-            await sendMessage(pageMapByName.boss!, constantOpenContent)
+            if (err instanceof FollowWorkHoursClosedError || (err as Error)?.message?.includes('SEND_CONFIRMATION_UNCERTAIN')) throw err
+            await sendMessage(pageMapByName.boss!, constantOpenContent, workHours)
           }
         }
       } else {
         if (rechatContentSource === RECHAT_CONTENT_SOURCE.GEMINI_WITH_CHAT_CONTEXT) {
           try {
             const textToSend = await getGptContent(messageList)
-            await sendMessage(pageMapByName.boss!, textToSend)
+            await sendMessage(pageMapByName.boss!, textToSend, workHours)
           } catch (err) {
             console.log(err)
-            if ((err as Error)?.message?.includes('SEND_CONFIRMATION_UNCERTAIN')) throw err
+            if (err instanceof FollowWorkHoursClosedError || (err as Error)?.message?.includes('SEND_CONFIRMATION_UNCERTAIN')) throw err
             if (rechatLlmFallback === RECHAT_LLM_FALLBACK.SEND_LOOK_FORWARD_EMOTION) {
-              await sendLookForwardReplyEmotion(pageMapByName.boss!)
+              await sendLookForwardReplyEmotion(pageMapByName.boss!, workHours)
             } else {
               throw err
             }
           }
         } else {
-          await sendLookForwardReplyEmotion(pageMapByName.boss!)
+          await sendLookForwardReplyEmotion(pageMapByName.boss!, workHours)
         }
       }
       taskProgress.update('sent', '页面已确认跟进消息发送')
@@ -708,6 +715,7 @@ export async function runEntry() {
       runRecordId
     }
   })
+  await workHours.waitUntilOpen()
   let puppeteerExecutable = await getLastUsedAndAvailableBrowser()
   if (!puppeteerExecutable) {
     try {
@@ -749,6 +757,12 @@ export async function runEntry() {
     try {
       await mainLoop()
     } catch (err) {
+      if (err instanceof FollowWorkHoursClosedError) {
+        taskProgress.update(undefined, (err as Error).message, WORK_HOURS_WAITING_STATE)
+        await browser?.close()
+        browser = null
+        continue
+      }
       console.error(err)
       try {
         await pageMapByName['boss']?.close()

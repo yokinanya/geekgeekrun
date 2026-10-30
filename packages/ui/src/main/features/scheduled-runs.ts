@@ -12,6 +12,7 @@ import { mainWindow } from '../window/mainWindow'
 import { sendToast } from '../utils/toast'
 import { readAutoChatResume } from './task-resume'
 import { checkpointRecovery } from '../../common/task-recovery.mjs'
+import { assertAiMatchingReady } from './resume-matching'
 const store = () => createScheduledRunStore(storageFilePath)
 
 export function notifyRunStatus(title: string, body: string) {
@@ -37,7 +38,8 @@ export function listScheduledRuns() { return store().list() }
 export function cancelScheduledRun(id: string) { store().cancel(id); return store().list() }
 export async function scheduleJobRun(at: number) {
   const accountId = await identity()
-  const config = withGlobalRunPolicy(Object.fromEntries(['boss.json', 'common-job-condition-config.json', 'target-company-list.json'].map(name => [name, readConfigFile(name)])))
+  const config = withGlobalRunPolicy(Object.fromEntries(['boss.json', 'common-job-condition-config.json', 'target-company-list.json', 'resumes.json'].map(name => [name, readConfigFile(name)])))
+  assertAiMatchingReady(config)
   normalizeJobSources(config['boss.json'].jobSourceList)
   validateJobFilterConfig(config['boss.json'])
   store().create(at, accountId, config)

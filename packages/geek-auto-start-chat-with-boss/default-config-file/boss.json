@@ -14,6 +14,11 @@
   "expectJobNameRegExpStr": "",
   "expectJobTypeRegExpStr": "",
   "expectJobDescRegExpStr": "",
+  "aiJobMatch": {
+    "enabled": false,
+    "minScore": 60,
+    "instructions": ""
+  },
   "isPosterHrFilterEnabled": false,
   "posterHrTitleRegExpStr": "HR|HRBP|HRG|Recruiter|Talent Acquisition|招聘|人事|人力|人资",
   "posterHrNotMatchStrategy": 2,
@@ -33,6 +38,12 @@
   "strategyScopeOptionWhenMarkJobCityNotMatch": 2,
   "jobDetailRegExpMatchLogic": 1,
   "autoReminder": {
+    "workHours": {
+      "enabled": true,
+      "weekdays": [1, 2, 3, 4, 5],
+      "start": "09:00",
+      "end": "18:00"
+    },
     "throttleIntervalMinutes": 10,
     "rechatLimitDay": 21,
     "geminiApiKey": "",

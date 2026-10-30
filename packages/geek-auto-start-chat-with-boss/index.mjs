@@ -64,6 +64,7 @@ const publishDailyQuota = () => {
   })
 }
 import { applyJobNatureFilter } from './job-nature-filter.mjs'
+import { normalizeAiJobMatch, evaluateJobBeforeAction } from './ai-job-match.mjs'
 import { watchJobResponses } from './boss-job-responses.mjs'
 import { createRunBudget, budgetStateError } from './run-budget.mjs'
 import { createBudgetStore } from './run-budget-store.mjs'
@@ -186,6 +187,7 @@ if (!checkAnyCombineBossRecommendFilterHasCondition(anyCombineRecommendJobFilter
   isSkipEmptyConditionForCombineRecommendJobFilter = false
 }
 const expectJobRegExpStr = readConfigFile('boss.json').expectJobRegExpStr
+const aiJobMatch = normalizeAiJobMatch(readConfigFile('boss.json').aiJobMatch)
 const jobNotMatchStrategy = readConfigFile('boss.json').jobNotMatchStrategy ?? MarkAsNotSuitOp.MARK_AS_NOT_SUIT_ON_BOSS
 
 const expectCityNotMatchStrategy = readConfigFile('boss.json').expectCityNotMatchStrategy ?? MarkAsNotSuitOp.NO_OP
@@ -269,6 +271,11 @@ if (
   expectJobNameRegExpStr = expectJobRegExpStr
   expectJobTypeRegExpStr = expectJobRegExpStr
   expectJobDescRegExpStr = expectJobRegExpStr
+}
+if (aiJobMatch.enabled) {
+  expectJobNameRegExpStr = ''
+  expectJobTypeRegExpStr = ''
+  expectJobDescRegExpStr = ''
 }
 
 if (
@@ -1653,6 +1660,17 @@ async function toRecommendPage (hooks) {
                       reject(new Error(ROTATE_NEXT_SOURCE_ERROR))
                       return
                     }
+                    continue continueFind
+                  }
+                  const aiDecision = await evaluateJobBeforeAction({
+                    settings: aiJobMatch, detail: targetJobData,
+                    evaluate: hooks.jobMatchEvaluation ? detail => hooks.jobMatchEvaluation.promise(null, detail) : undefined
+                  })
+                  if (aiDecision && !aiDecision.accepted) {
+                    blockJobNotSuit.add(targetJobData.jobInfo.encryptId)
+                    autoStartChatEventBus.emit('TASK_PROGRESS', { kind: 'skipped',
+                      detail: `AI 匹配 ${aiDecision.score} 分（最低 ${aiDecision.minScore}）：${aiDecision.reason}` })
+                    if (countSourceNoMatch()) { reject(new Error(ROTATE_NEXT_SOURCE_ERROR)); return }
                     continue continueFind
                   }
                   if (isCollectMode) {

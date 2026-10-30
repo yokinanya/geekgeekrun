@@ -4,6 +4,7 @@ import { writeJsonAtomicSync } from '@geekgeekrun/utils/atomic-json.mjs'
 
 // Freeze job settings, never cookies/API keys. Every restart of a queued worker uses this file.
 const bossKeys = [
+  'aiJobMatch',
   'requiredJobConditions',
   'combineRecommendJobFilterType', 'anyCombineRecommendJobFilter', 'staticCombineRecommendJobFilterConditions',
   'isSkipEmptyConditionForCombineRecommendJobFilter', 'expectJobRegExpStr', 'expectJobNameRegExpStr',
@@ -23,7 +24,8 @@ export function jobConfigSnapshot(config) {
   return {
     'boss.json': Object.fromEntries(bossKeys.filter(key => Object.hasOwn(config['boss.json'], key)).map(key => [key, copy(config['boss.json'][key])])),
     'common-job-condition-config.json': Object.fromEntries([...bossKeys, 'expectCompanies'].filter(key => Object.hasOwn(config['common-job-condition-config.json'] || {}, key)).map(key => [key, copy(config['common-job-condition-config.json'][key])])),
-    'target-company-list.json': copy(config['target-company-list.json'] || [])
+    'target-company-list.json': copy(config['target-company-list.json'] || []),
+    ...(config['boss.json'].aiJobMatch?.enabled && config['resumes.json'] ? { 'resumes.json': copy(config['resumes.json']) } : {})
   }
 }
 export function readTaskConfigSnapshot(filePath) {

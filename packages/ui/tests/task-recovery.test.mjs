@@ -183,6 +183,7 @@ test('the real task runner blocks pending sends and changed modes even with no c
   for (const [saved, mode, blocked] of [[checkpoint({ messageSendPending: true }), 'collect', true], [checkpoint(), 'chat', true], [checkpoint(), 'collect', false]]) {
     const calls = []
     const ctx = vm.createContext({ assertCheckpointCanResume, readAutoChatResume: () => saved, AUTO_CHAT_ERROR_EXIT_CODE,
+      assertAiMatchingReady: config => assert.notEqual(config['boss.json'].aiJobMatch?.enabled, true),
       readConfigFile: () => ({ autoChatRunMode: mode }), readRunSettings, normalizeJobSources, process: { env: {}, argv: ['electron'] },
       checkBossLoginStatus: async () => ({ status: 'valid', accountId: 'fixture' }),
       readGlobalRunPolicy: () => ({ dailyLimit: 100 }), createDailyQuotaStore: () => ({ assert() {} }), storageFilePath: '/fixture',

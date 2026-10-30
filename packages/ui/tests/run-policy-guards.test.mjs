@@ -13,6 +13,7 @@ const body = (await transform(file.slice(file.indexOf('let startLock:')).replace
 function fixture({ login = { status: 'valid', accountId: 'a' }, quotaError, runMode = 'chat', modeAfterSnapshot } = {}) {
   let worker = null, created = 0, dispatched = 0, snapshots = [], checkpointWrites = 0
   const ctx = vm.createContext({ AUTO_CHAT_ERROR_EXIT_CODE, readRunSettings, jobConfigSnapshot,
+    assertAiMatchingReady: config => assert.notEqual(config['boss.json'].aiJobMatch?.enabled, true),
     readConfigFile: name => name === 'boss.json' ? { autoChatRunMode: runMode, autoChatRunInBackground: false } : {},
     checkBossLoginStatus: async () => login, readGlobalRunPolicy: () => normalizeRunPolicy({}),
     withGlobalRunPolicy: c => ({ ...c, 'boss.json': { ...c['boss.json'], ...policyRunConfig({}) } }),

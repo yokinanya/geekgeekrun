@@ -1,3 +1,5 @@
+import { followWorkHoursIssues } from './follow-work-hours.mjs';
+
 export const clone = (value) => JSON.parse(JSON.stringify(value));
 export { validModels as validModelList } from "./model-config.mjs";
 export function followIssues(f) {
@@ -20,7 +22,7 @@ export function followIssues(f) {
       field: "follow-context",
       text: "请填写AI参考消息条数，须为8—20的整数。",
     });
-  return errors;
+  return [...errors, ...followWorkHoursIssues(f.workHours)];
 }
 export function followErrors(f) {
   return followIssues(f).map((issue) => issue.text);

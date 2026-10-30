@@ -7,6 +7,13 @@ import { actualRunFacts } from "../../../../common/run-config-facts.mjs";
 import { sourceRotationLabel } from "../../../../common/source-rotation-options.mjs";
 import { reorderEnabledSources } from "../../../../common/source-order.mjs";
 import SourceOrderList from "./SourceOrderList.vue";
+import WorkspaceHeading from "./WorkspaceHeading.vue";
+import WorkspaceLoginStatus from "./WorkspaceLoginStatus.vue";
+import FollowWorkHoursSettings from "./FollowWorkHoursSettings.vue";
+import ResumeMatchingSettings from "./ResumeMatchingSettings.vue";
+import ConfigurationArchive from "./ConfigurationArchive.vue";
+import { normalizeAiJobMatch } from "@geekgeekrun/geek-auto-start-chat-with-boss/ai-job-match.mjs";
+import { initialFollowWorkHours, describeFollowWorkHours, WORK_HOURS_WAITING_STATE } from "../../../../common/follow-work-hours.mjs";
 import { experienceSelectionLabels, experienceSelectionCodes, matchesExperience, escapeKeyword, keywordPattern, allKeywordPattern, normalizeRequiredJobConditions, requiredJobConditionReasons, JOB_NATURE_OPTIONS, DEGREE_OPTIONS } from "@geekgeekrun/geek-auto-start-chat-with-boss/job-filter-config.mjs";
 import { parseSalaryDetails, matchesSalaryDetails } from "@geekgeekrun/utils/job-values.cjs";
 import { normalizeCitySelection, matchesCitySelection } from "@geekgeekrun/geek-auto-start-chat-with-boss/city-filter.mjs";
@@ -82,8 +89,9 @@ import buildInfo from "../../../../common/build-info.json";
 import "./filter-data.js";
 import "./keyword-examples.js";
 import "./ux.css";
-import { refractionMap } from "./glass.js";
-import { sidebarGlassPresentation } from "./glass-support.js";
+import "./workspace-shell.css";
+import "./workspace-content.css";
+import "./workspace-overlays.css";
 import RunPolicySettings from "./RunPolicySettings.vue";
 import { RUN_PROFILES, normalizeRunPolicy, policyRunConfig, estimateRun, ACCOUNT_DAILY_CHAT_LIMIT } from "@geekgeekrun/geek-auto-start-chat-with-boss/run-policy.mjs";
 import {
@@ -216,6 +224,9 @@ export default Vue.defineComponent({
     };
     const cached = normalizeCache(initial.uxState);
     const original = initial.config["boss.json"];
+    const aiMatching = ref(normalizeAiJobMatch(original.aiJobMatch));
+    const resumeSettingsRef = ref(null);
+    let reloadingImportedConfig = false;
     // Existing expressions are never silently interpreted as ordinary keywords.
     const adopted = {
       ...defaults,
@@ -441,6 +452,11 @@ export default Vue.defineComponent({
         fallback:
           original.autoReminder.rechatLlmFallback === 2 ? "stop" : "emotion",
       },
+    );
+    follow.value.workHours = initialFollowWorkHours(
+      follow.value.workHours === undefined
+        ? original.autoReminder.workHours
+        : follow.value.workHours,
     );
     if (follow.value.source === "fixed") follow.value.source = "emotion";
     if (follow.value.opening === "platform") follow.value.opening = "fixed";
@@ -1849,7 +1865,7 @@ export default Vue.defineComponent({
       // collecting every job uses no conditions: the saved ones stay as they are and are
       // checked again once a mode that uses them is chosen
       if (isCollectAll(d)) return runConfig(d);
-      if (d.legacyNeedsReview?.length)
+      if (d.legacyNeedsReview?.some(key => !aiMatching.value.enabled || key === "excluded"))
         throw new Error("请重新填写或确认旧筛选条件，避免扩大筛选范围。");
       const hasSalary = d.low != null || d.high != null;
       if (hasSalary && !["month", "year", "day", "hour"].includes(d.unit))
@@ -1941,6 +1957,7 @@ export default Vue.defineComponent({
         openContentSource: f.opening === "ai" ? 2 : 1,
         constantOpenContent: f.openingText,
         rechatLlmFallback: f.fallback === "emotion" ? 1 : 2,
+        workHours: clone(f.workHours),
       };
     }
     function configForFollowOnly(f, d, bossOverride) {
@@ -2048,7 +2065,7 @@ export default Vue.defineComponent({
     function conditionIssues(d, a) {
       try { normalizeRequiredJobConditions(d.requiredConditions); }
       catch (error) { a.push({ field: "requiredConditions", text: error.message }); }
-      for (const field of d.legacyNeedsReview || [])
+      for (const field of (d.legacyNeedsReview || []).filter(key => !aiMatching.value.enabled || key === "excluded"))
         a.push({
           field,
           text: "旧筛选条件已备份，请填写关键词或明确取消该项限制。",
@@ -2060,7 +2077,7 @@ export default Vue.defineComponent({
           ["regexDesc", "岗位描述"],
           ["regexExclude", "排除公司"],
         ])
-          if (d[key])
+          if (d[key] && (!aiMatching.value.enabled || key === "regexExclude"))
             try {
               new RegExp(d[key], "i");
             } catch {
@@ -2086,6 +2103,7 @@ export default Vue.defineComponent({
         }
       for (const [key, pattern] of Object.entries(d.legacyPatterns || {}))
         try {
+          if (aiMatching.value.enabled && key !== "excluded") continue;
           new RegExp(pattern, "im");
         } catch {
           a.push({ field: key, text: "原有规则格式无效，请改用关键词。" });
@@ -2163,7 +2181,8 @@ export default Vue.defineComponent({
         return;
       }
       if (e.action === "resume") {
-        openLegacy("简历编辑", "/resumeEditor");
+        settingTab.value = "ai";
+        navigate("settings");
         return;
       }
       if (e.action === "prompt") {
@@ -2910,9 +2929,18 @@ export default Vue.defineComponent({
         summaryDraft.regexMode && summaryDraft.regexExclude ? "排除公司沿用高级规则" : "",
       ].filter(Boolean).join("；");
       return [
-        group("基本条件", [titleField, ...otherFields, ...basicFilters]),
+        h("section", { class: "ux-group ux-ai-match-summary" }, [
+          h("h3", "简历与 AI 匹配"),
+          hint(aiMatching.value.enabled
+            ? `已启用 · 最低 ${aiMatching.value.minScore} 分。AI 判断岗位名称、分类和职责匹配；以下明确条件仍会核对。`
+            : "可导入 PDF / Markdown 简历，让 AI 根据真实经历判断岗位匹配度。"),
+          button("配置简历与匹配", async () => { settingTab.value = "ai"; await navigate("settings"); }, { plain: true }),
+        ]),
+        group("基本条件", [...(aiMatching.value.enabled ? [] : [titleField]), ...otherFields, ...basicFilters]),
         disclosure("更多筛选条件", extraConditionsOpen, "extra-conditions", [
-          group("岗位关键词", [...keywordFilters, keywordLogic]),
+          group("岗位关键词", aiMatching.value.enabled
+            ? [hint("AI 匹配已启用，岗位名称、分类和描述关键词暂不参与找岗位筛选。关闭 AI 匹配后恢复。")]
+            : [...keywordFilters, keywordLogic]),
           group("必须符合的条件", [
           field("求职类型", tags(required, "jobNatures", JOB_NATURE_OPTIONS, { allowCreate: false, "aria-label": "求职类型" }),
             "留空不限；选定后，类型不符合或无法确认的岗位会略过。", false, "requiredConditions"),
@@ -2967,6 +2995,7 @@ export default Vue.defineComponent({
           ["会话范围", (f.days === 0 ? "不限时间" : "最近" + f.days + "天") + "的已读未回复会话"],
           ["消息来源", f.source === "emotion" ? "期待回复表情" : "AI生成"],
           ["发送间隔", "每次间隔 " + f.interval + " 分钟"],
+          ["处理时间", describeFollowWorkHours(f.workHours)],
         ];
       }
       const d = effective();
@@ -3006,6 +3035,7 @@ export default Vue.defineComponent({
             ...(d.runMode === "collect" ? [] : ["默认处理方式"]),
           ];
       return [
+        ...(!isCollectAll(d) && aiMatching.value.enabled ? [["AI 简历匹配", `AI 判断适合，且至少 ${aiMatching.value.minScore} 分；低分只略过，分析失败暂停`]] : []),
         ...keys.filter(k => k !== "运行预算" && k !== "浏览器窗口").map((k) => [k, facts[k]]),
         ...(d.runMode === "chat"
           ? [["发送内容", "BOSS账号设置的招呼语"]]
@@ -3554,7 +3584,9 @@ export default Vue.defineComponent({
         ]),
       ];
     }
-    function evaluate(originalRow, d) {
+    function evaluate(originalRow, conditions) {
+      const d = aiMatching.value.enabled ? { ...conditions, titles: [], categories: [], description: [],
+        regexTitle: "", regexType: "", regexDesc: "", legacyPatterns: { ...conditions.legacyPatterns, titles: "", categories: "", description: "" } } : conditions;
       const collect = d.runMode === "collect";
       const row = {
         ...originalRow,
@@ -3748,6 +3780,10 @@ export default Vue.defineComponent({
         ),
       ];
       const actions = actionCodes.map(strategyLabel);
+      if (aiMatching.value.enabled && !unknown.length && !reasons.length) return {
+        ...row, result: "待 AI 判断", reason: "明确条件通过；还需按简历与求职方向进行 AI 分析",
+        actionLabels: ["待 AI 判断"], action: "运行时 AI 判断适合且达到最低分数后，才可开聊或按条件收集",
+      };
       return {
         ...row,
         result: unknown.length
@@ -3791,7 +3827,7 @@ export default Vue.defineComponent({
     }
     function previewControls() {
       return h("div", { class: "ux-preview-actions" }, [
-        button("预览筛选结果", previewMatches, { type: "primary", plain: true, icon: View, class: "ux-preview-button", loading: previewBusy.value,
+        button(aiMatching.value.enabled ? "预览明确条件" : "预览筛选结果", previewMatches, { type: "primary", plain: true, icon: View, class: "ux-preview-button", loading: previewBusy.value,
           title: "根据资料库中已保存的岗位预览当前筛选条件" }),
       ]);
     }
@@ -4313,7 +4349,7 @@ export default Vue.defineComponent({
             presentErrors(
               [
                 {
-                  text: "请先完善并保存简历，至少包含一条有效工作经历和项目经历。",
+                  text: "请先导入并保存 PDF / Markdown 简历，或填写有效的结构化简历。",
                   action: "resume",
                   label: "去填写简历",
                 },
@@ -4541,6 +4577,7 @@ export default Vue.defineComponent({
         searching: "正在检查下一批岗位",
         blocked: "已停止，请检查条件",
         waiting: "等待新岗位或会话",
+        [WORK_HOURS_WAITING_STATE]: "等待工作时间",
         resting: "定时休息中",
         retrying: "自动恢复中",
         stopped: "已停止",
@@ -4770,6 +4807,7 @@ export default Vue.defineComponent({
       return [
         curtain,
         heading("找岗位"),
+        railCollapsed.value ? loginStatus() : null,
         templateBar(),
         problems(errors.value),
         pausedBanner() || runPanel("auto"),
@@ -4786,6 +4824,7 @@ export default Vue.defineComponent({
       searching: "正在检查下一批岗位",
       blocked: "已停止，请检查条件",
       waiting: "等待新岗位或会话",
+      [WORK_HOURS_WAITING_STATE]: "等待工作时间",
       resting: "定时休息中",
       retrying: "自动恢复中",
       stopped: "已停止",
@@ -4987,7 +5026,7 @@ export default Vue.defineComponent({
         "aside",
         { class: "ux-section-rail", "aria-label": "配置完成度与分组导航" },
         [
-          railLogin(),
+          loginStatus(true),
           h("div", { class: "ux-rail-summary" }, [
             h("div", { class: "ux-rail-title" }, [
               h("span", "配置完成度"),
@@ -5319,6 +5358,7 @@ export default Vue.defineComponent({
       resting: ["休息", "info"],
       yielded: ["让位", "info"],
       waiting: ["等待", "info"],
+      [WORK_HOURS_WAITING_STATE]: ["工作时间", "info"],
       searching: ["翻页", "info"],
       retrying: ["重试", "warning"],
       paused: ["暂停", "warning"],
@@ -5360,6 +5400,8 @@ export default Vue.defineComponent({
           ? ["准备让位", "info"]
           : p.state === "paused"
             ? ["已暂停，等待安全验证", "warning"]
+            : p.state === WORK_HOURS_WAITING_STATE
+              ? ["等待工作时间", "info"]
             : ["运行中", "primary"]
         : queueEntry
           ? queueEntry.reason === "yielded"
@@ -5549,7 +5591,9 @@ export default Vue.defineComponent({
     R.watch(
       () =>
         JSON.stringify([
-          taskStore.runningTasks.map((t) => [t.workerId, t.yielding]),
+          taskStore.runningTasks.map((t) => [
+            t.workerId, t.yielding, t.runtimeStorage?.taskProgress?.progress?.state,
+          ]),
           taskStore.taskQueue.map((t) => [t.workerId, t.reason, t.position]),
           taskStore.taskHistory.length,
           autoResume.value?.runRecordId,
@@ -5814,6 +5858,7 @@ export default Vue.defineComponent({
             : "平台默认招呼语",
       ],
       ["发送间隔", "每次间隔 " + (f.interval ?? "—") + " 分钟"],
+      ["处理时间", f.workHours === undefined ? "历史任务未记录工作时间限制" : describeFollowWorkHours(f.workHours)],
     ];
     function snapshotDiffRows(snap) {
       const then = Object.fromEntries(templateFacts(snap.draft || {}));
@@ -5979,46 +6024,22 @@ export default Vue.defineComponent({
         () => [tabBar(detailTab.value, tabs, (v) => (detailTab.value = v)), h("div", { class: "ux-task-drawer-body" }, body)],
       );
     }
-    function railLogin() {
-      const { status, detail } = bossLogin.value;
-      const needsLogin = status === "invalid" || status === "missing";
-      return h(
-        "div",
-        {
-          class: ["ux-rail-login", "is-" + status],
-          role: "status",
-          "aria-label": "BOSS直聘登录状态",
+    function loginStatus(compact = false) {
+      return h(WorkspaceLoginStatus, {
+        state: bossLogin.value,
+        statusText: loginStatusText[bossLogin.value.status] || bossLogin.value.status,
+        compact,
+        onLogin: goToLoginSetup,
+        onSettings: () => {
+          settingTab.value = "account";
+          navigate("settings");
         },
-        [
-          h("div", { class: "ux-rail-login-head" }, [
-            h("span", { class: "ux-rail-dot", "aria-hidden": "true" }),
-            h("span", { class: "ux-rail-login-label" }, "BOSS账号"),
-            h("strong", loginStatusText[status] || status),
-          ]),
-          detail && status !== "valid"
-            ? h("p", { class: "ux-rail-login-detail" }, detail)
-            : null,
-          h("div", { class: "ux-rail-login-actions" }, [
-            needsLogin
-              ? button(status === "missing" ? "去登录" : "重新登录", goToLoginSetup, {
-                  link: true,
-                  type: "primary",
-                  size: "small",
-                })
-              : null,
-            button("重新检测", refreshLoginStatus, {
-              link: true,
-              size: "small",
-              disabled: status === "checking",
-            }),
-          ]),
-        ],
-      );
+        onRefresh: refreshLoginStatus,
+      });
     }
     function heading(title, desc) {
-      return h("header", [
-        h("div", { class: "ux-page-title" }, [h("h1", title), desc ? tip(desc, title) : null]),
-      ]);
+      return h(WorkspaceHeading, { title, page: route.value },
+        () => desc ? tip(desc, title) : null);
     }
     let workflowFooterObserver;
     function attachWorkflowFooter(element) {
@@ -6237,9 +6258,7 @@ export default Vue.defineComponent({
                   },
                   { type: "primary", plain: true },
                 ),
-                button("查看 / 编辑简历", () =>
-                  openLegacy("简历编辑", "/resumeEditor"),
-                ),
+                button("查看 / 编辑简历", async () => { settingTab.value = "ai"; await navigate("settings"); }),
                 button("编辑补充消息提示词", () => openPrompt("open")),
                 tip("按你的简历生成补充消息；生成失败时改发固定消息。", "AI补充消息"),
               ]),
@@ -6276,8 +6295,21 @@ export default Vue.defineComponent({
       return [
         taskCurtain("follow"),
         heading("消息跟进", "只跟进对方已读但没回的会话，不会自动回复对方发来的消息。"),
+        loginStatus(),
         problems(errors.value),
         runPanel("follow"),
+        card(
+          "处理时间",
+          [
+            h(FollowWorkHoursSettings, {
+              modelValue: f.workHours,
+              "onUpdate:modelValue": (value) => update(f, "workHours", value),
+              issues: errors.value,
+            }),
+            inlineErrors("follow-work-hours"),
+          ],
+          { id: "follow-work-hours-settings" },
+        ),
         card(
           "跟进哪些会话",
           [
@@ -6405,9 +6437,7 @@ export default Vue.defineComponent({
                             },
                             { type: "primary", plain: true },
                           ),
-                          button("查看 / 编辑简历", () =>
-                            openLegacy("简历编辑", "/resumeEditor"),
-                          ),
+                          button("查看 / 编辑简历", async () => { settingTab.value = "ai"; await navigate("settings"); }),
                           button("编辑后续跟进提示词", () =>
                             openPrompt("rechat"),
                           ),
@@ -6583,12 +6613,13 @@ export default Vue.defineComponent({
           [
             ["account", "账号与浏览器"],
             ["pace", "任务运行"],
-            ["ai", "AI助手"],
+            ["ai", "AI 与简历"],
             ["notify", "通知提醒"],
             ["data", "数据管理"],
             ["updates", "关于与更新"],
           ],
-          (v) => {
+          async (v) => {
+            if (resumeSettingsRef.value && !(await resumeSettingsRef.value.canDiscard())) return;
             settingTab.value = v;
             if (v === "data") loadDataSettings();
             if (v === "pace") loadGlobalPace();
@@ -6726,8 +6757,22 @@ export default Vue.defineComponent({
               ]),
             ])
           : null,
+        tab === "ai" ? h(ResumeMatchingSettings, {
+          ref: resumeSettingsRef,
+          onSaved: async settings => { aiMatching.value = settings; await native.refresh(); },
+          onEditStructured: async () => {
+            if (resumeSettingsRef.value && !(await resumeSettingsRef.value.canDiscard())) return;
+            await openLegacy("简历编辑", "/resumeEditor");
+            await resumeSettingsRef.value?.reload();
+          },
+        }) : null,
         tab === "ai" ? aiSettings() : null,
         tab === "updates" ? updateSettingsCard() : null,
+        tab === "data" ? h(ConfigurationArchive, { onImported: () => {
+          reloadingImportedConfig = true;
+          clearTimeout(draftSaveTimer);
+          window.location.reload();
+        } }) : null,
         ...(tab === "data" ? dataSettings() : []),
         tab === "pace"
           ? h(RunPolicySettings, { policy: globalPolicy.value, daily: dailyInfo.value, saving: paceSaving.value,
@@ -6833,7 +6878,7 @@ export default Vue.defineComponent({
         () => true,
         () => false,
       );
-    // ---- BOSS login state: shown in the section rail, checked before a task starts ----
+    // ---- BOSS login state: shared by task pages and the rail, checked before starting ----
     const bossLogin = ref({ status: "checking", detail: "", checkedAt: 0 });
     const loginStatusText = {
       checking: "正在检测…",
@@ -7228,6 +7273,7 @@ export default Vue.defineComponent({
             title: view ? "模板：" + view.name : "",
             width: "min(640px, calc(100vw - 48px))",
             appendToBody: true,
+            class: "ux-dialog",
             "onUpdate:modelValue": (v) => {
               if (!v) templateView.value = null;
             },
@@ -8115,7 +8161,7 @@ export default Vue.defineComponent({
       return card(
         [
           "AI模型配置",
-          tip("只有选了AI生成消息才会用到。测试时只发一条简单请求，不带简历。", "AI模型配置"),
+          tip("简历匹配与 AI 生成消息共用这里的模型配置。测试连接只发送简单请求，不带简历。", "AI模型配置"),
         ],
         [
           initial.config["llm.json"].length > 2 && modelDirty.value
@@ -8192,6 +8238,7 @@ export default Vue.defineComponent({
 
     async function navigate(next) {
       if (next === route.value) return;
+      if (resumeSettingsRef.value && !(await resumeSettingsRef.value.canDiscard())) return;
       // Preserve unsaved in-memory changes; navigation does not discard drafts.
       route.value = next;
       errors.value = [];
@@ -8245,6 +8292,7 @@ export default Vue.defineComponent({
         title = "筛选结果预览";
         const data = preview.value;
         content = previewBusy.value ? [hint("正在读取职位库…")] : data ? [
+          aiMatching.value.enabled ? alert("此预览只检查明确条件；AI 匹配会在任务运行时逐个判断。也可在“资料库 → 已保存详情”中分析单个岗位。") : null,
           hint(`预览最近 ${data.rows.length} 条，职位库共 ${data.total} 条；匹配 ${data.rows.filter(row => row.result === "匹配").length} 条，不匹配 ${data.rows.filter(row => row.result === "不匹配").length} 条，信息不足 ${data.rows.filter(row => row.result === "信息不足").length} 条。`),
           E("ElTable", { data: data.rows, maxHeight: 380, style: { width: "100%" }, emptyText: "职位库暂无岗位" }, () => [
             ...[["jobName", "岗位", 150], ["companyName", "公司", 120], ["degreeName", "学历", 70],
@@ -8541,110 +8589,6 @@ export default Vue.defineComponent({
         { default: () => content, footer: () => inline(footerNodes) },
       );
     }
-    // Sidebar glass is available without a native window material (Win10 included).
-    // Native hosts retain the existing refraction; other hosts use cheaper CSS frost.
-    const vibrant = !!window.api?.nativeGlass;
-    const glass = sidebarGlassPresentation({
-      nativeGlass: vibrant,
-      supportsBackdrop: !!(window.CSS?.supports("backdrop-filter", "blur(12px)") || window.CSS?.supports("-webkit-backdrop-filter", "blur(12px)")),
-      reduceTransparency: window.matchMedia("(prefers-reduced-transparency: reduce)").matches,
-    });
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const GLASS_INSET = 8;
-    let glassNav, glassObserver, glassFrame, glassSize = "";
-    function attachGlass(el) {
-      if (!glass.refracted || el === glassNav) return;
-      glassObserver?.disconnect();
-      cancelAnimationFrame(glassFrame);
-      glassNav = el;
-      glassSize = "";
-      if (!el) return;
-      glassObserver = new ResizeObserver(() => {
-        cancelAnimationFrame(glassFrame);
-        glassFrame = requestAnimationFrame(updateGlassFilter);
-      });
-      glassObserver.observe(el);
-      updateGlassFilter();
-    }
-    function updateGlassFilter() {
-      const el = glassNav;
-      if (!el) return;
-      const w = Math.round(el.clientWidth - GLASS_INSET * 2),
-        h = Math.round(el.clientHeight - GLASS_INSET * 2);
-      if (w <= 0 || h <= 0 || w + "x" + h === glassSize) return;
-      glassSize = w + "x" + h;
-      const map = refractionMap(w, h, { radius: 22, bezel: 18, maxShift: 14 });
-      el.querySelector("#ux-glass-filter")?.setAttribute("width", w);
-      el.querySelector("#ux-glass-filter")?.setAttribute("height", h);
-      const image = el.querySelector("#ux-glass-filter feImage");
-      image?.setAttribute("width", w);
-      image?.setAttribute("height", h);
-      image?.setAttribute("href", map.url);
-      el.querySelector("#ux-glass-filter feDisplacementMap")?.setAttribute("scale", map.scale);
-    }
-    function moveGlassHighlight(e) {
-      if (!glass.refracted || reducedMotion) return;
-      const el = e.currentTarget,
-        r = el.getBoundingClientRect(),
-        x = e.clientX - r.left,
-        y = e.clientY - r.top;
-      el.style.setProperty("--glass-x", x + "px");
-      el.style.setProperty("--glass-y", y + "px");
-      el.style.setProperty("--glass-dx", (x / r.width - 0.5) * 2);
-      el.style.setProperty("--glass-dy", (y / r.height - 0.5) * 2);
-      el.style.setProperty("--glass-glow", "1");
-    }
-    function hideGlassHighlight(e) {
-      const el = e.currentTarget;
-      el.style.setProperty("--glass-glow", "0");
-      el.style.setProperty("--glass-dx", "0");
-      el.style.setProperty("--glass-dy", "0");
-    }
-    function glassLayers() {
-      return [
-        h("div", { class: "ux-glass-backdrop", "aria-hidden": "true" }, [
-          h("div", { class: "ux-glass-wallpaper" }),
-        ]),
-        glass.refracted ? h("svg", { class: "ux-glass-defs", "aria-hidden": "true", focusable: "false" }, [
-          h(
-            "filter",
-            {
-              id: "ux-glass-filter",
-              x: 0,
-              y: 0,
-              filterUnits: "userSpaceOnUse",
-              primitiveUnits: "userSpaceOnUse",
-              "color-interpolation-filters": "sRGB",
-            },
-            [
-              // 1 frost the backdrop
-              h("feGaussianBlur", {
-                in: "SourceGraphic",
-                stdDeviation: 6,
-                edgeMode: "duplicate",
-                result: "blur",
-              }),
-              // 2 refract it through the rounded bezel
-              h("feImage", { x: 0, y: 0, preserveAspectRatio: "none", result: "map" }),
-              h("feDisplacementMap", {
-                in: "blur",
-                in2: "map",
-                xChannelSelector: "R",
-                yChannelSelector: "G",
-                result: "refracted",
-              }),
-              // 3 colour mixing: glass concentrates and slightly lifts what it transmits
-              h("feColorMatrix", { in: "refracted", type: "saturate", values: 1.8, result: "mixed" }),
-              h("feComponentTransfer", { in: "mixed" }, [
-                h("feFuncR", { type: "linear", slope: 1.02, intercept: 0.05 }),
-                h("feFuncG", { type: "linear", slope: 1.02, intercept: 0.05 }),
-                h("feFuncB", { type: "linear", slope: 1.02, intercept: 0.05 }),
-              ]),
-            ],
-          ),
-        ]) : null,
-      ];
-    }
     const Root = {
       render() {
         // running, queued and paused tasks: everything in 当前任务
@@ -8658,10 +8602,8 @@ export default Vue.defineComponent({
           {
             class: [
               "ux-shell",
-              "is-glass",
-              "is-glass-" + glass.effect,
+              "ux-screen-" + route.value,
               navCollapsed.value ? "is-nav-collapsed" : "",
-              vibrant ? "is-vibrant" : "",
             ],
           },
           [
@@ -8670,12 +8612,8 @@ export default Vue.defineComponent({
             {
               class: "aside-nav ux-nav",
               "data-v-cccda18a": "",
-              ref: attachGlass,
-              onPointermove: moveGlassHighlight,
-              onPointerleave: hideGlassHighlight,
             },
             [
-            ...glassLayers(),
             h("div", { class: "ux-nav-head" }, [
               h("div", { class: "ux-nav-brand" }, [
                 h("p", { class: "ux-brand" }, "牛人快跑"),
@@ -8862,11 +8800,13 @@ export default Vue.defineComponent({
       }
     };
     function flushDraft() {
+      if (reloadingImportedConfig) return Promise.resolve(true);
       clearTimeout(draftSaveTimer);
       if (dirty.value) return persist();
       return Promise.resolve(true);
     }
     const unloadHandler = (e) => {
+      if (reloadingImportedConfig) return;
       if (!e.isTrusted) return;
       clearTimeout(draftSaveTimer);
       try {
@@ -9021,8 +8961,6 @@ export default Vue.defineComponent({
       },
     );
     R.onUnmounted(() => {
-      glassObserver?.disconnect();
-      cancelAnimationFrame(glassFrame);
       clearTimeout(draftSaveTimer);
       clearInterval(progressTimer);
       clearSpotlight();

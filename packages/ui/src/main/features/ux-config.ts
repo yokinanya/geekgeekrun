@@ -20,6 +20,7 @@ import { defaultPromptMap } from '../flow/READ_NO_REPLY_AUTO_REMINDER_MAIN/boss-
 import { validModelList, followErrors, normalizeCache } from '../../common/ux-validation.mjs'
 import { completes, listModels } from '@geekgeekrun/utils/gpt-request.mjs'
 import { aiRequestSettings, completionOptions } from '../../common/model-config.mjs'
+import { exclusiveConfig as exclusive } from './config-queue'
 import {
   keepAutoReminderSecrets,
   llmSecretsLostByHostChange,
@@ -73,12 +74,6 @@ function discardCloseDraft(part: 'state' | 'models', requestedAt: number) {
   } catch (error) {
     console.warn('无法更新退出草稿：', (error as Error).message)
   }
-}
-let queue: Promise<unknown> = Promise.resolve()
-function exclusive<T>(fn: () => Promise<T>): Promise<T> {
-  const p = queue.catch(() => {}).then(fn)
-  queue = p
-  return p
 }
 async function readState() {
   try {
@@ -227,7 +222,8 @@ export function initUxIpc() {
             source: a.rechatContentSource === 2 ? 'ai' : 'emotion',
             days: a.rechatLimitDay,
             interval: a.throttleIntervalMinutes,
-            context: a.recentMessageQuantityForLlm
+            context: a.recentMessageQuantityForLlm,
+            workHours: a.workHours
           })
           if (errors.length) throw Error(errors.join('；'))
         }

@@ -14,6 +14,7 @@ import { assertCheckpointCanResume } from '../../common/task-recovery.mjs'
 import { withGlobalRunPolicy, readGlobalRunPolicy } from './run-policy'
 import { checkBossLoginStatus } from './boss-login-check'
 import { createDailyQuotaStore } from '@geekgeekrun/geek-auto-start-chat-with-boss/daily-chat-quota.mjs'
+import { assertAiMatchingReady } from './resume-matching'
 
 interface DaemonStatus {
   workers?: { workerId: string; args?: string[] }[]
@@ -79,6 +80,7 @@ async function runCommonInternal({
   }
   const currentResume = mode === 'geekAutoStartWithBossMain' ? readAutoChatResume({ strict: true }) : null
   if (mode === 'geekAutoStartWithBossMain') {
+    assertAiMatchingReady(capturedConfig || { 'boss.json': readConfigFile('boss.json'), 'resumes.json': readConfigFile('resumes.json') })
     const login = await checkBossLoginStatus()
     if (login.status !== 'valid' || !login.accountId) throw Error('请先登录并验证BOSS账号，再开始任务。')
     if (expectedAccountId && expectedAccountId !== login.accountId) throw Error('当前账号与任务账号不同，未启动；请切回原账号。')
@@ -123,7 +125,7 @@ async function runCommonInternal({
   }
   let autoChatRunMode = 'chat'
   if (mode === 'geekAutoStartWithBossMain') {
-    const config = capturedConfig || withGlobalRunPolicy(Object.fromEntries(['boss.json', 'common-job-condition-config.json', 'target-company-list.json'].map(name => [name, readConfigFile(name)])))
+    const config = capturedConfig || withGlobalRunPolicy(Object.fromEntries(['boss.json', 'common-job-condition-config.json', 'target-company-list.json', 'resumes.json'].map(name => [name, readConfigFile(name)])))
     if (expectedAccountId) config['boss.json'].autoChatExpectedAccountId = expectedAccountId
     if (resumeRunRecordId) assertCheckpointCanResume(currentResume, {
       runRecordId: resumeRunRecordId,

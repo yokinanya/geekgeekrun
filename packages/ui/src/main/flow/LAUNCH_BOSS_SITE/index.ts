@@ -405,6 +405,7 @@ export type GreetJobStatus =
   | 'missing'
   | 'login'
   | 'failed'
+  | 'not-matched'
 
 // 资料库 → 打招呼: open the job detail page and press 立即沟通 once; the page stays open so the
 // user sees what BOSS answered
@@ -521,7 +522,7 @@ export async function launchBossSite() {
     if (data.type === 'GREET_JOB') {
       const result = await greetJob(browser, data.encryptJobId).catch((err) => ({
         status: 'failed' as const,
-        message: String(err?.message ?? err)
+        message: String(err?.detail ?? err?.message ?? err)
       }))
       pipeWriteRegardlessError(
         pipeForWrite,
